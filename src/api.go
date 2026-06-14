@@ -68,10 +68,19 @@ func listProjects() []projectInfo {
 }
 
 type sessionInfo struct {
-	File  string  `json:"file"`
-	Title string  `json:"title"`
-	Label *string `json:"label"`
-	Mtime string  `json:"mtime"`
+	File      string  `json:"file"`
+	SessionID string  `json:"sessionId"`
+	Title     string  `json:"title"`
+	Label     *string `json:"label"`
+	Mtime     string  `json:"mtime"`
+}
+
+// idOrFile은 내용에 sessionId가 없을 때 파일명(.jsonl 제거)을 ID로 쓴다.
+func idOrFile(id, file string) string {
+	if id != "" {
+		return id
+	}
+	return strings.TrimSuffix(file, ".jsonl")
 }
 
 func listSessions(project string) []sessionInfo {
@@ -105,10 +114,11 @@ func listSessions(project string) []sessionInfo {
 	for _, f := range fs {
 		lines := loadSession(filepath.Join(dir, f.name))
 		out = append(out, sessionInfo{
-			File:  f.name,
-			Title: sessionTitle(lines),
-			Label: labelPtr(labels, project+"/"+f.name),
-			Mtime: f.mt.Format("01-02 15:04"),
+			File:      f.name,
+			SessionID: idOrFile(sessionID(lines), f.name),
+			Title:     sessionTitle(lines),
+			Label:     labelPtr(labels, project+"/"+f.name),
+			Mtime:     f.mt.Format("01-02 15:04"),
 		})
 	}
 	return out
@@ -121,9 +131,10 @@ type message struct {
 }
 
 type sessionResp struct {
-	Title    string    `json:"title"`
-	Label    *string   `json:"label"`
-	Messages []message `json:"messages"`
+	Title     string    `json:"title"`
+	SessionID string    `json:"sessionId"`
+	Label     *string   `json:"label"`
+	Messages  []message `json:"messages"`
 }
 
 func renderSession(project, file string) sessionResp {
@@ -191,6 +202,7 @@ func renderSession(project, file string) sessionResp {
 		}
 	}
 	resp.Title = sessionTitle(lines)
+	resp.SessionID = idOrFile(sessionID(lines), file)
 	resp.Label = labelPtr(loadLabels(), project+"/"+file)
 	return resp
 }

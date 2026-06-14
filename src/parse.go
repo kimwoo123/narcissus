@@ -60,6 +60,16 @@ func firstUserText(obj map[string]any) string {
 	return ""
 }
 
+// sessionID는 라인 내용에 박힌 실제 sessionId를 쓰고, 없으면 파일명(fallback)으로 둔다.
+func sessionID(lines []map[string]any) string {
+	for _, o := range lines {
+		if id := str(o["sessionId"]); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
 func sessionTitle(lines []map[string]any) string {
 	// ai-title은 갱신될 때마다 라인이 추가되므로 마지막 것이 최신이다
 	title := ""

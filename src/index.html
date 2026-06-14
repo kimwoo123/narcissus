@@ -15,7 +15,13 @@
           border-left: 3px solid transparent; }
   .sess:hover { background: #f0f0f0; }
   .sess.open { border-left-color: #1a56db; background: #f0f6ff; }
-  .sess .t { color: #6b7280; font-size: 11px; }
+  .sess .t { color: #6b7280; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+  /* 세션 ID 칩: 짧게 보이고 클릭하면 전체 UUID 복사 */
+  .sid { font-family: Menlo, monospace; font-size: 10px; color: #6b7280;
+         background: #eef0f3; border: 1px solid #e1e4e8; border-radius: 4px;
+         padding: 1px 5px; cursor: pointer; user-select: none; }
+  .sid:hover { background: #dbeafe; color: #1a56db; }
+  .sid.copied { background: #d1fadf; color: #057a55; border-color: #a6f0c6; }
 
   /* 메인: 패널들을 세로 컬럼으로 나란히 */
   #main { flex: 1; display: flex; flex-direction: row; overflow: hidden; }
@@ -91,6 +97,22 @@
 <script>
 async function j(u){ return (await fetch(u)).json(); }
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function shortId(id){ return (id||'').slice(0,8); }
+
+// 세션 ID 칩 HTML. 클릭하면 전체 ID를 복사하고 잠깐 ✓ 표시.
+function sidChip(id){
+  if(!id) return '';
+  return `<span class="sid" title="클릭해서 세션 ID 복사: ${esc(id)}"`+
+         ` onclick='copyId(event,"${esc(id)}")'>${esc(shortId(id))}</span>`;
+}
+async function copyId(ev, id){
+  ev.stopPropagation();               // 세션 열기/라벨 편집으로 번지지 않게
+  try { await navigator.clipboard.writeText(id); } catch(e) {}
+  const el = ev.currentTarget;
+  const orig = el.textContent;
+  el.classList.add('copied'); el.textContent = '✓ 복사됨';
+  setTimeout(()=>{ el.classList.remove('copied'); el.textContent = orig; }, 1000);
+}
 
 const MAX_PANES = 4;
 let panes = [];      // [{id, pid, file, title, label}]
@@ -115,7 +137,8 @@ async function loadSessions(pid){
   box.innerHTML = list.map(s=>{
     const open = openFiles.has(s.file) ? ' open' : '';
     return `<div class="sess${open}" onclick='onSessionClick(event,"${pid}","${s.file}")'>
-       <div>${s.label?'🏷 ':''}${esc(s.label||s.title)}</div><div class="t">${s.mtime}</div></div>`;
+       <div>${s.label?'🏷 ':''}${esc(s.label||s.title)}</div>
+       <div class="t"><span>${s.mtime}</span>${sidChip(s.sessionId)}</div></div>`;
   }).join('') || '<div class="empty">세션 없음</div>';
 }
 
@@ -143,6 +166,7 @@ function paneHTML(p){
   return `<div class="pane${active}" data-pane="${p.id}" onmousedown="setActive(${p.id})">
       <div class="pane-title" onclick="editLabel(event, ${p.id})">
         <span class="label-text">로딩…</span>
+        <span class="sid-slot"></span>
         <span class="pane-close" onclick="event.stopPropagation(); closePane(${p.id})">×</span>
       </div>
       <div class="pane-conv"><div class="empty">로딩…</div></div>
@@ -161,7 +185,7 @@ function updateActiveClasses(){
 
 // 기존 패널 DOM은 건드리지 않고 새 패널만 덧붙인다 (다른 패널이 초기화되지 않게).
 function addPane(pid, file){
-  const pane = {id: ++seq, pid, file, title: '', label: ''};
+  const pane = {id: ++seq, pid, file, title: '', label: '', sid: ''};
   const main = document.getElementById('main');
   if(!panes.length) main.innerHTML = '';   // 빈 안내 제거
   panes.push(pane);
@@ -220,9 +244,11 @@ async function refreshPane(pane, keepScroll){
   const el = document.querySelector(`.pane[data-pane="${pane.id}"]`);
   if(!el) return;
   const data = await j('/api/session?project='+encodeURIComponent(pane.pid)+'&file='+encodeURIComponent(pane.file));
-  pane.title = data.title; pane.label = data.label || '';
+  pane.title = data.title; pane.label = data.label || ''; pane.sid = data.sessionId || '';
   const labelEl = el.querySelector('.label-text');
   if(labelEl) setTitleText(labelEl, pane);  // 편집 중이면 input이라 label-text가 없음 → 건너뜀
+  const slot = el.querySelector('.sid-slot');
+  if(slot) slot.innerHTML = sidChip(pane.sid);
 
   const conv = el.querySelector('.pane-conv');
   // 최신이 맨 위라, 새 내용은 위쪽에 추가된다.
