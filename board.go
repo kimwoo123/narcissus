@@ -38,6 +38,7 @@ type WorktreeView struct {
 	Pipeline  *pipeline     `json:"pipeline"`
 	PR        *pullRequest  `json:"pr"`
 	Sessions  []SessionView `json:"sessions"`
+	latest    time.Time     // 이 워크트리의 가장 최근 세션 활동 — 정렬 전용(JSON 미직렬화)
 }
 
 type SessionView struct {
@@ -130,11 +131,16 @@ func build(cfg Config, ado *adoClient) StateView {
 				wv.Pipeline = ado.latestBuild(w.Branch)
 				wv.PR = ado.activePR(w.Branch)
 			}
+			var wtLatest time.Time // 이 워크트리의 가장 최근 세션 활동
 			for _, s := range ss {
 				wv.Sessions = append(wv.Sessions, sessionView(cfg, s, wv.Open))
-				if s.LastTS.After(latest) {
-					latest = s.LastTS
+				if s.LastTS.After(wtLatest) {
+					wtLatest = s.LastTS
 				}
+			}
+			wv.latest = wtLatest
+			if wtLatest.After(latest) {
+				latest = wtLatest // repo 단위 최근값으로 굴려 올림
 			}
 			sortSessions(wv.Sessions)
 			wviews = append(wviews, wv)
@@ -254,20 +260,11 @@ func sortSessions(ss []SessionView) {
 	})
 }
 
-func worktreeRank(w WorktreeView) int {
-	best := 3
-	for _, s := range w.Sessions {
-		if r := stateRank(s.State); r < best {
-			best = r
-		}
-	}
-	return best
-}
-
 func sortWorktrees(ws []WorktreeView) {
+	// 가장 최근에 활동한 세션을 가진 워크트리를 위로. 동률이면 브랜치명순. (repo 정렬과 동일 기준)
 	sort.Slice(ws, func(i, j int) bool {
-		if ri, rj := worktreeRank(ws[i]), worktreeRank(ws[j]); ri != rj {
-			return ri < rj
+		if !ws[i].latest.Equal(ws[j].latest) {
+			return ws[i].latest.After(ws[j].latest)
 		}
 		return ws[i].Branch < ws[j].Branch
 	})
