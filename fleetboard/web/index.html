@@ -50,6 +50,9 @@
     white-space:nowrap; max-width:46vw; }
   .sage { color:var(--gray); font-size:11px; margin-left:auto; white-space:nowrap; }
   .empty { color:var(--mut); padding:40px; text-align:center; }
+  .toggle { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--mut);
+    cursor:pointer; user-select:none; }
+  .toggle input { cursor:pointer; margin:0; }
   a { color:var(--blue); }
 </style>
 </head>
@@ -59,6 +62,8 @@
   <h1>FleetBoard</h1>
   <span class="meta" id="meta"></span>
   <span class="spacer"></span>
+  <label class="toggle"><input type="checkbox" id="idleCheck"> 💤 idle 표시</label>
+  <span class="meta" id="idleInfo"></span>
   <span class="meta" id="updated"></span>
 </header>
 <main id="board"><div class="empty">불러오는 중…</div></main>
@@ -102,23 +107,34 @@ function gitInfo(w) {
 }
 
 function render(state) {
+  lastState = state;
   document.getElementById('meta').textContent =
     state.adoConfigured ? 'Azure DevOps 연결됨' : 'ADO 미설정 (ADO_ORG/ADO_PROJECT/ADO_PAT)';
   document.getElementById('updated').textContent = '갱신 ' + ago(state.generatedAt);
 
   const board = document.getElementById('board');
+  const idleInfo = document.getElementById('idleInfo');
   if (!state.repos || !state.repos.length) {
+    idleInfo.textContent = '';
     board.innerHTML = `<div class="empty">표시할 세션이 없어요.<br>
       최근 활동이 FLEETBOARD_MAX_AGE_HOURS 안에 있는지 확인하세요.</div>`;
     return;
   }
   let html = '';
+  let hiddenIdle = 0;
   for (const repo of state.repos) {
-    html += `<div class="repo"><h2><b>${esc(repo.name)}</b> <span style="color:var(--gray)">${esc(repo.path)}</span></h2>`;
+    let wtHtml = '';
     for (const w of repo.worktrees) {
+      let sessions = w.sessions || [];
+      if (!showIdle) {
+        const before = sessions.length;
+        sessions = sessions.filter(s => s.state !== 'idle');
+        hiddenIdle += before - sessions.length;
+        if (sessions.length === 0) continue; // 보일 세션이 없으면 worktree 자체를 숨김
+      }
       const openPill = w.open ? '<span class="open-pill">● VSCode</span>' : '';
       const pr = w.pr ? `<a class="badge blue" href="${esc(w.pr.url)}" target="_blank" title="${esc(w.pr.title)}">PR !${w.pr.id}</a>` : '';
-      html += `<div class="wt">
+      wtHtml += `<div class="wt">
         <div class="wt-head">
           <span class="branch">${esc(w.branch || '(no branch)')}</span>
           ${gitInfo(w)} ${openPill}
@@ -128,24 +144,44 @@ function render(state) {
           <a class="badge" href="${esc(w.vscodeUrl)}" title="open in VSCode">⧉ VSCode</a>
         </div>
         <div class="sessions">`;
-      if (!w.sessions.length) {
-        html += `<div class="sess"><span class="st idle">—</span><span class="sprompt">세션 없음</span></div>`;
+      if (!sessions.length) {
+        wtHtml += `<div class="sess"><span class="st idle">—</span><span class="sprompt">세션 없음</span></div>`;
       }
-      for (const s of w.sessions) {
+      for (const s of sessions) {
         const st = STATE[s.state] || STATE.idle;
-        html += `<div class="sess">
+        wtHtml += `<div class="sess">
           <span class="st ${st.cls}">${st.label}</span>
           <span class="stitle">${esc(s.title) || '<span style="color:var(--gray)">제목 없음</span>'}</span>
           <span class="sprompt">${esc(s.prompt)}</span>
           <span class="sage">${ago(s.lastActivity)}</span>
         </div>`;
       }
-      html += `</div></div>`;
+      wtHtml += `</div></div>`;
     }
-    html += `</div>`;
+    if (!wtHtml) continue; // 보일 worktree가 없으면 repo도 숨김
+    html += `<div class="repo"><h2><b>${esc(repo.name)}</b> <span style="color:var(--gray)">${esc(repo.path)}</span></h2>${wtHtml}</div>`;
+  }
+
+  idleInfo.textContent = hiddenIdle ? `💤 ${hiddenIdle} 숨김` : '';
+  if (!html) {
+    board.innerHTML = `<div class="empty">활성 세션(✋ 입력대기 · ⏳ 작업중)이 없어요.<br>
+      idle ${hiddenIdle}개가 숨겨져 있습니다 — 위의 “💤 idle 표시”를 켜보세요.</div>`;
+    return;
   }
   board.innerHTML = html;
 }
+
+// idle 표시 토글 — 기본은 숨김, 선택은 localStorage에 기억
+const SHOW_IDLE_KEY = 'fleetboard.showIdle';
+let showIdle = localStorage.getItem(SHOW_IDLE_KEY) === '1';
+let lastState = null;
+const idleCheck = document.getElementById('idleCheck');
+idleCheck.checked = showIdle;
+idleCheck.addEventListener('change', () => {
+  showIdle = idleCheck.checked;
+  localStorage.setItem(SHOW_IDLE_KEY, showIdle ? '1' : '0');
+  if (lastState) render(lastState); // 다음 폴링을 기다리지 않고 즉시 반영
+});
 
 async function tick() {
   try {
