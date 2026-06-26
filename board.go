@@ -22,6 +22,7 @@ type RepoView struct {
 	Name      string         `json:"name"`
 	Path      string         `json:"path"`
 	Worktrees []WorktreeView `json:"worktrees"`
+	latest    time.Time      // 가장 최근 세션 활동 시각 — 정렬 전용(소문자라 JSON 직렬화 안 됨)
 }
 
 type WorktreeView struct {
@@ -107,6 +108,7 @@ func build(cfg Config, ado *adoClient) StateView {
 		}
 
 		var wviews []WorktreeView
+		var latest time.Time // 이 repo의 모든 세션 중 가장 최근 활동 시각
 		for _, w := range wts {
 			ss := sessByCwd[w.Path]
 			// Only show worktrees that have sessions, plus extras the user asked for.
@@ -130,6 +132,9 @@ func build(cfg Config, ado *adoClient) StateView {
 			}
 			for _, s := range ss {
 				wv.Sessions = append(wv.Sessions, sessionView(cfg, s, wv.Open))
+				if s.LastTS.After(latest) {
+					latest = s.LastTS
+				}
 			}
 			sortSessions(wv.Sessions)
 			wviews = append(wviews, wv)
@@ -142,9 +147,16 @@ func build(cfg Config, ado *adoClient) StateView {
 			Name:      filepath.Base(strings.TrimSuffix(strings.TrimSuffix(key, "/.git"), "/.bare")),
 			Path:      ra.anyDir,
 			Worktrees: wviews,
+			latest:    latest,
 		})
 	}
-	sort.Slice(repos, func(i, j int) bool { return repos[i].Name < repos[j].Name })
+	// 가장 최근에 활동한 세션을 가진 프로젝트를 위로. 동률이면 이름순.
+	sort.Slice(repos, func(i, j int) bool {
+		if !repos[i].latest.Equal(repos[j].latest) {
+			return repos[i].latest.After(repos[j].latest)
+		}
+		return repos[i].Name < repos[j].Name
+	})
 
 	return StateView{
 		Repos:         repos,
