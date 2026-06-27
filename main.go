@@ -136,9 +136,9 @@ func main() {
 	fmt.Printf("narcissus → %s\n", url)
 	fmt.Printf("  CLAUDE_HOME = %s\n", cfg.ClaudeHome)
 	if cfg.adoConfigured() {
-		fmt.Printf("  Azure DevOps = %s/%s\n", cfg.ADOOrg, cfg.ADOProject)
+		fmt.Printf("  Azure DevOps = PAT 설정됨 (org/project/repo는 각 repo 리모트에서 자동 판별)\n")
 	} else {
-		fmt.Printf("  Azure DevOps = (미설정; ADO_ORG / ADO_PROJECT / ADO_PAT)\n")
+		fmt.Printf("  Azure DevOps = (미설정; ADO_PAT 를 설정하세요)\n")
 	}
 	fmt.Printf("  뷰어 = %s/viewer  (종료: Ctrl+C)\n", url)
 

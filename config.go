@@ -14,11 +14,12 @@ type Config struct {
 	ClaudeHome  string // CLAUDE_HOME (default ~/.claude)
 	MaxAgeHours int    // FLEETBOARD_MAX_AGE_HOURS: hide sessions idle longer than this (default 168 = 7d)
 	RunningSec  int    // FLEETBOARD_RUNNING_SEC: activity newer than this counts as "running" (default 45)
-	WaitingHrs  int    // FLEETBOARD_WAITING_HOURS: assistant-ended session older than this is "idle", not "waiting" (default 24)
+	WaitingMin  int    // FLEETBOARD_WAITING_MIN: assistant-ended session newer than this is "waiting"; older (but within WaitingHrs) is "recent" (default 30)
+	WaitingHrs  int    // FLEETBOARD_WAITING_HOURS: assistant-ended session older than this is "idle", not "recent" (default 24)
 	ExtraRepos  []string
 
-	ADOOrg     string // ADO_ORG
-	ADOProject string // ADO_PROJECT
+	// ADO org/project/repo는 각 repo의 git origin 리모트에서 자동 판별한다(adoRemote).
+	// 설정으로는 인증용 PAT만 받는다. PAT는 org 범위라 여러 프로젝트를 함께 조회한다.
 	ADOPat     string // ADO_PAT
 	BaseBranch string // FLEETBOARD_BASE_BRANCH: 머지 대상 브랜치 (default main)
 }
@@ -46,9 +47,8 @@ func loadConfig() Config {
 		ClaudeHome:  env("CLAUDE_HOME", filepath.Join(home, ".claude")),
 		MaxAgeHours: envInt("FLEETBOARD_MAX_AGE_HOURS", 168),
 		RunningSec:  envInt("FLEETBOARD_RUNNING_SEC", 45),
+		WaitingMin:  envInt("FLEETBOARD_WAITING_MIN", 30),
 		WaitingHrs:  envInt("FLEETBOARD_WAITING_HOURS", 24),
-		ADOOrg:      env("ADO_ORG", ""),
-		ADOProject:  env("ADO_PROJECT", ""),
 		ADOPat:      env("ADO_PAT", ""),
 		BaseBranch:  env("FLEETBOARD_BASE_BRANCH", "main"),
 	}
@@ -65,5 +65,5 @@ func loadConfig() Config {
 }
 
 func (c Config) adoConfigured() bool {
-	return c.ADOOrg != "" && c.ADOProject != "" && c.ADOPat != ""
+	return c.ADOPat != ""
 }

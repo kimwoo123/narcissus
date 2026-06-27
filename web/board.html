@@ -44,7 +44,7 @@
     border-top:1px dashed #21262d; }
   .sess:first-child { border-top:none; }
   .st { font-size:12px; white-space:nowrap; width:84px; }
-  .st.waiting { color:var(--yellow); } .st.running { color:var(--green); } .st.idle { color:var(--gray); }
+  .st.waiting { color:var(--yellow); } .st.running { color:var(--green); } .st.recent { color:var(--blue); } .st.idle { color:var(--gray); }
   .stitle { font-weight:600; }
   .stitle a { color:inherit; text-decoration:none; }
   .stitle a:hover { color:var(--blue); text-decoration:underline; }
@@ -78,9 +78,10 @@
 
 <script>
 const STATE = {
-  waiting: {cls:'waiting', label:'✋ 입력대기'},
-  running: {cls:'running', label:'⏳ 작업중'},
-  idle:    {cls:'idle',    label:'💤 idle'},
+  waiting: {cls:'waiting', label:'입력대기'},
+  running: {cls:'running', label:'작업중'},
+  recent:  {cls:'recent',  label:'최근'},
+  idle:    {cls:'idle',    label:'idle'},
 };
 
 function ago(iso) {

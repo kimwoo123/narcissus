@@ -77,14 +77,16 @@ go build -o narcissus .
 | `FLEETBOARD_WAITING_HOURS` | `24` | 이보다 오래된 세션은 `입력대기` 대신 `idle` |
 | `FLEETBOARD_RUNNING_SEC` | `45` | 이보다 최근 활동이면 `작업중` |
 | `FLEETBOARD_REPOS` | — | 세션이 없어도 항상 표시할 레포 경로(`,` 또는 `:` 구분) |
-| `ADO_ORG` | — | Azure DevOps organization |
-| `ADO_PROJECT` | — | Azure DevOps project |
-| `ADO_PAT` | — | Personal Access Token (Build: Read, Code: Read) |
+| `FLEETBOARD_BASE_BRANCH` | `main` | merged PR 판정의 머지 대상 브랜치 |
+| `ADO_PAT` | — | Azure DevOps Personal Access Token (Build: Read, Code: Read) |
 
-ADO 3종이 비어 있으면 파이프라인/PR 열만 빠지고 나머지는 그대로 동작합니다.
+**`ADO_PAT`만 설정하면 됩니다.** org/project/repo는 각 레포의 git `origin` 리모트에서
+자동 판별하므로(여러 ADO 프로젝트가 섞여 있어도 각각 올바르게 조회), 별도 org/project 설정이
+필요 없습니다. ADO가 아닌 레포(GitHub 등)는 파이프라인/PR·merged 열이 자동으로 빠집니다.
+PAT가 비어 있으면 ADO 관련 열만 전부 빠지고 나머지는 그대로 동작합니다.
 
 ```bash
-export ADO_ORG=your-org ADO_PROJECT=your-project ADO_PAT=xxxxxxxxxxxx
+export ADO_PAT=xxxxxxxxxxxx
 ./narcissus
 ```
 

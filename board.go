@@ -97,6 +97,13 @@ func build(cfg Config, ado *adoClient) StateView {
 	var repos []RepoView
 	for _, key := range order {
 		ra := repoOf[key]
+		// repo의 origin 리모트에서 ADO 좌표(org/project/repo)를 도출한다.
+		// 비-ADO(GitHub 등)면 isADO=false → 이 repo는 ADO 조회를 건너뛴다.
+		var aOrg, aProj, aRepo string
+		isADO := false
+		if ra.isGit {
+			aOrg, aProj, aRepo, isADO = adoRemote(ra.anyDir)
+		}
 		var wts []worktree
 		if ra.isGit {
 			wts = listWorktrees(ra.anyDir)
@@ -128,11 +135,11 @@ func build(cfg Config, ado *adoClient) StateView {
 				Open:      isOpen(w.Path, open),
 				VSCodeURL: "vscode://file/" + w.Path,
 			}
-			if ado != nil && w.Branch != "" && w.Branch != "(detached)" {
-				wv.Pipeline = ado.latestBuild(w.Branch)
-				wv.PR = ado.activePR(w.Branch)
+			if ado != nil && isADO && w.Branch != "" && w.Branch != "(detached)" {
+				wv.Pipeline = ado.latestBuild(aOrg, aProj, aRepo, w.Branch)
+				wv.PR = ado.activePR(aOrg, aProj, aRepo, w.Branch)
 				if w.Branch != cfg.BaseBranch { // base 자신은 머지 판정 무의미
-					wv.Merged = ado.mergedPR(w.Branch, cfg.BaseBranch)
+					wv.Merged = ado.mergedPR(aOrg, aProj, aRepo, w.Branch, cfg.BaseBranch)
 				}
 			}
 			var wtLatest time.Time // 이 워크트리의 가장 최근 세션 활동
@@ -199,8 +206,10 @@ func sessionView(cfg Config, s *session, wtOpen bool) SessionView {
 	switch {
 	case age < time.Duration(cfg.RunningSec)*time.Second:
 		state = "running"
+	case wtOpen && s.LastRole == "assistant" && age < time.Duration(cfg.WaitingMin)*time.Minute:
+		state = "waiting" // turn ended within minutes, VSCode open → 지금 당신 차례
 	case wtOpen && s.LastRole == "assistant" && age < time.Duration(cfg.WaitingHrs)*time.Hour:
-		state = "waiting" // turn ended recently, VSCode open → waiting on the human
+		state = "recent" // assistant-ended today, but a while ago → 우선순위 낮은 대기
 	}
 	return SessionView{
 		ID:           s.ID,
@@ -263,12 +272,14 @@ func isOpen(path string, open map[string]bool) bool {
 
 func stateRank(s string) int {
 	switch s {
-	case "waiting":
-		return 0
 	case "running":
+		return 0
+	case "waiting":
 		return 1
-	default:
+	case "recent":
 		return 2
+	default:
+		return 3
 	}
 }
 
