@@ -20,6 +20,7 @@ type Config struct {
 	ADOOrg     string // ADO_ORG
 	ADOProject string // ADO_PROJECT
 	ADOPat     string // ADO_PAT
+	BaseBranch string // FLEETBOARD_BASE_BRANCH: 머지 대상 브랜치 (default main)
 }
 
 func env(key, def string) string {
@@ -49,6 +50,7 @@ func loadConfig() Config {
 		ADOOrg:      env("ADO_ORG", ""),
 		ADOProject:  env("ADO_PROJECT", ""),
 		ADOPat:      env("ADO_PAT", ""),
+		BaseBranch:  env("FLEETBOARD_BASE_BRANCH", "main"),
 	}
 	// FLEETBOARD_REPOS: extra repo paths (comma or colon separated) to show
 	// even when no Claude session currently targets them.

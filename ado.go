@@ -35,12 +35,14 @@ type adoClient struct {
 	mu   sync.Mutex
 	bCache map[string]adoCacheEntry
 	pCache map[string]adoCacheEntry
+	mCache map[string]adoCacheEntry
 }
 
 type adoCacheEntry struct {
-	at   time.Time
-	pipe *pipeline
-	pr   *pullRequest
+	at     time.Time
+	pipe   *pipeline
+	pr     *pullRequest
+	merged *pullRequest
 }
 
 func newADO(cfg Config) *adoClient {
@@ -49,6 +51,7 @@ func newADO(cfg Config) *adoClient {
 		auth:   "Basic " + base64.StdEncoding.EncodeToString([]byte(":"+cfg.ADOPat)),
 		bCache: map[string]adoCacheEntry{},
 		pCache: map[string]adoCacheEntry{},
+		mCache: map[string]adoCacheEntry{},
 	}
 }
 
@@ -147,6 +150,44 @@ func (a *adoClient) activePR(branch string) *pullRequest {
 	}
 	a.mu.Lock()
 	a.pCache[branch] = adoCacheEntry{at: time.Now(), pr: pr}
+	a.mu.Unlock()
+	return pr
+}
+
+// mergedPR returns the most recent completed pull request whose source branch
+// matches and whose target is base. A non-nil result means this branch's work
+// was merged into base (squash·rebase·merge 무관 — PR 완료가 곧 머지).
+func (a *adoClient) mergedPR(branch, base string) *pullRequest {
+	if branch == "" {
+		return nil
+	}
+	a.mu.Lock()
+	if e, ok := a.mCache[branch]; ok && time.Since(e.at) < adoTTL {
+		a.mu.Unlock()
+		return e.merged
+	}
+	a.mu.Unlock()
+
+	u := fmt.Sprintf("%s/git/pullrequests?api-version=7.1&$top=1&searchCriteria.status=completed&searchCriteria.sourceRefName=%s&searchCriteria.targetRefName=%s",
+		a.base(), url.QueryEscape("refs/heads/"+branch), url.QueryEscape("refs/heads/"+base))
+	var resp struct {
+		Value []struct {
+			ID         int    `json:"pullRequestId"`
+			Title      string `json:"title"`
+			Repository struct {
+				Name string `json:"name"`
+			} `json:"repository"`
+		} `json:"value"`
+	}
+	var pr *pullRequest
+	if a.get(u, &resp) && len(resp.Value) > 0 {
+		v := resp.Value[0]
+		web := fmt.Sprintf("https://dev.azure.com/%s/%s/_git/%s/pullrequest/%d",
+			url.PathEscape(a.cfg.ADOOrg), url.PathEscape(a.cfg.ADOProject), url.PathEscape(v.Repository.Name), v.ID)
+		pr = &pullRequest{ID: v.ID, Title: v.Title, URL: web}
+	}
+	a.mu.Lock()
+	a.mCache[branch] = adoCacheEntry{at: time.Now(), merged: pr}
 	a.mu.Unlock()
 	return pr
 }

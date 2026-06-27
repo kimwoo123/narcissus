@@ -5,6 +5,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# .env (gitignore됨)에 ADO_*, FLEETBOARD_* 를 적어두면 자동 로드된다.
+if [ -f "$ROOT/.env" ]; then
+  echo "▶ loading .env"
+  set -a; . "$ROOT/.env"; set +a
+fi
+
 echo "▶ building…"
 ( cd "$ROOT" && go build -o narcissus . )
 

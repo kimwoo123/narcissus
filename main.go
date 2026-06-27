@@ -82,6 +82,25 @@ func main() {
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, build(cfg, ado))
 	})
+	// 보드의 ⧉ VSCode 뱃지가 호출. `code <경로>`로 그 워크트리를 연다 — 이미 열린
+	// 창이면 VSCode가 그 창으로 포커스하므로 워크스페이스 "설정 저장?" 프롬프트가 안 뜬다.
+	// 경로는 현재 보드에 실제로 있는 워크트리만 허용(임의 경로 실행 방지).
+	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "POST only", http.StatusMethodNotAllowed)
+			return
+		}
+		path := r.URL.Query().Get("path")
+		if !isBoardWorktree(cfg, ado, path) {
+			http.Error(w, "unknown worktree", http.StatusBadRequest)
+			return
+		}
+		if err := exec.Command("code", path).Start(); err != nil {
+			http.Error(w, "code 실행 실패: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]bool{"ok": true})
+	})
 
 	// ── 뷰어 (JSONL viewer) ──
 	mux.HandleFunc("/viewer", func(w http.ResponseWriter, r *http.Request) {

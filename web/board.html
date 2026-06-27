@@ -52,9 +52,13 @@
     white-space:nowrap; max-width:46vw; }
   .sage { color:var(--gray); font-size:11px; margin-left:auto; white-space:nowrap; }
   .empty { color:var(--mut); padding:40px; text-align:center; }
-  .toggle { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--mut);
-    cursor:pointer; user-select:none; }
-  .toggle input { cursor:pointer; margin:0; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg-btn { font:inherit; font-size:12px; color:var(--mut); background:transparent; border:0;
+    padding:4px 12px; cursor:pointer; }
+  .seg-btn + .seg-btn { border-left:1px solid var(--line); }
+  .seg-btn:hover { color:var(--fg); }
+  .seg-btn.on { background:var(--panel); color:var(--fg); font-weight:600; }
+  .seg-count { color:var(--gray); font-weight:400; margin-left:3px; }
   a { color:var(--blue); }
 </style>
 </head>
@@ -64,8 +68,10 @@
   <h1>FleetBoard</h1>
   <span class="meta" id="meta"></span>
   <span class="spacer"></span>
-  <label class="toggle"><input type="checkbox" id="idleCheck"> 💤 idle 표시</label>
-  <span class="meta" id="idleInfo"></span>
+  <div class="seg" id="seg">
+    <button class="seg-btn" data-mode="active">활성만</button>
+    <button class="seg-btn" data-mode="all">전체<span class="seg-count" id="idleCount"></span></button>
+  </div>
   <span class="meta" id="updated"></span>
 </header>
 <main id="board"><div class="empty">불러오는 중…</div></main>
@@ -115,9 +121,9 @@ function render(state) {
   document.getElementById('updated').textContent = '갱신 ' + ago(state.generatedAt);
 
   const board = document.getElementById('board');
-  const idleInfo = document.getElementById('idleInfo');
+  const idleCount = document.getElementById('idleCount');
   if (!state.repos || !state.repos.length) {
-    idleInfo.textContent = '';
+    idleCount.textContent = '';
     board.innerHTML = `<div class="empty">표시할 세션이 없어요.<br>
       최근 활동이 FLEETBOARD_MAX_AGE_HOURS 안에 있는지 확인하세요.</div>`;
     return;
@@ -136,14 +142,16 @@ function render(state) {
       }
       const openPill = w.open ? '<span class="open-pill">● VSCode</span>' : '';
       const pr = w.pr ? `<a class="badge blue" href="${esc(w.pr.url)}" target="_blank" title="${esc(w.pr.title)}">PR !${w.pr.id}</a>` : '';
+      const merged = w.merged ? `<a class="badge green" href="${esc(w.merged.url)}" target="_blank" title="${esc(w.merged.title)}">✓ merged !${w.merged.id}</a>` : '';
       wtHtml += `<div class="wt">
         <div class="wt-head">
           <span class="branch">${esc(w.branch || '(no branch)')}</span>
           ${gitInfo(w)} ${openPill}
           <span class="spacer"></span>
+          ${merged}
           ${pr}
           ${pipeBadge(w.pipeline)}
-          <a class="badge" href="${esc(w.vscodeUrl)}" title="open in VSCode">⧉ VSCode</a>
+          <a class="badge openvs" data-path="${esc(w.path)}" href="#" title="VSCode 창으로 이동 (이미 열려있으면 그 창 포커스)">⧉ VSCode</a>
         </div>
         <div class="sessions">`;
       if (!sessions.length) {
@@ -169,25 +177,42 @@ function render(state) {
     html += `<div class="repo"><h2><b>${esc(repo.name)}</b> <span style="color:var(--gray)">${esc(repo.path)}</span></h2>${wtHtml}</div>`;
   }
 
-  idleInfo.textContent = hiddenIdle ? `💤 ${hiddenIdle} 숨김` : '';
+  idleCount.textContent = hiddenIdle ? ` (${hiddenIdle})` : '';
   if (!html) {
     board.innerHTML = `<div class="empty">활성 세션(✋ 입력대기 · ⏳ 작업중)이 없어요.<br>
-      idle ${hiddenIdle}개가 숨겨져 있습니다 — 위의 “💤 idle 표시”를 켜보세요.</div>`;
+      idle ${hiddenIdle}개가 숨겨져 있습니다 — 위 “전체”를 눌러보세요.</div>`;
     return;
   }
   board.innerHTML = html;
 }
 
-// idle 표시 토글 — 기본은 숨김, 선택은 localStorage에 기억
+// 활성/전체 세그먼트 토글 — 기본은 '활성만'(idle 숨김), 선택은 localStorage에 기억
 const SHOW_IDLE_KEY = 'fleetboard.showIdle';
 let showIdle = localStorage.getItem(SHOW_IDLE_KEY) === '1';
 let lastState = null;
-const idleCheck = document.getElementById('idleCheck');
-idleCheck.checked = showIdle;
-idleCheck.addEventListener('change', () => {
-  showIdle = idleCheck.checked;
+const seg = document.getElementById('seg');
+function syncSeg() {
+  seg.querySelectorAll('.seg-btn').forEach(b =>
+    b.classList.toggle('on', (b.dataset.mode === 'all') === showIdle));
+}
+seg.addEventListener('click', e => {
+  const btn = e.target.closest('.seg-btn');
+  if (!btn) return;
+  showIdle = btn.dataset.mode === 'all';
   localStorage.setItem(SHOW_IDLE_KEY, showIdle ? '1' : '0');
+  syncSeg();
   if (lastState) render(lastState); // 다음 폴링을 기다리지 않고 즉시 반영
+});
+syncSeg();
+
+// ⧉ VSCode 뱃지: vscode:// URL 대신 서버가 `code <경로>`를 실행 → 이미 열린 창이면
+// 그 창으로 포커스(워크스페이스 대체가 아니라 "설정 저장?" 프롬프트가 안 뜸).
+// board는 5초마다 innerHTML이 갈리므로 부모에 위임 바인딩한다.
+document.getElementById('board').addEventListener('click', e => {
+  const a = e.target.closest('.openvs');
+  if (!a) return;
+  e.preventDefault();
+  fetch('/api/open?path=' + encodeURIComponent(a.dataset.path), {method:'POST'}).catch(()=>{});
 });
 
 async function tick() {

@@ -37,6 +37,7 @@ type WorktreeView struct {
 	VSCodeURL string        `json:"vscodeUrl"`
 	Pipeline  *pipeline     `json:"pipeline"`
 	PR        *pullRequest  `json:"pr"`
+	Merged    *pullRequest  `json:"merged"` // base 브랜치로 머지 완료된 PR (있으면 머지됨)
 	Sessions  []SessionView `json:"sessions"`
 	latest    time.Time     // 이 워크트리의 가장 최근 세션 활동 — 정렬 전용(JSON 미직렬화)
 }
@@ -130,6 +131,9 @@ func build(cfg Config, ado *adoClient) StateView {
 			if ado != nil && w.Branch != "" && w.Branch != "(detached)" {
 				wv.Pipeline = ado.latestBuild(w.Branch)
 				wv.PR = ado.activePR(w.Branch)
+				if w.Branch != cfg.BaseBranch { // base 자신은 머지 판정 무의미
+					wv.Merged = ado.mergedPR(w.Branch, cfg.BaseBranch)
+				}
 			}
 			var wtLatest time.Time // 이 워크트리의 가장 최근 세션 활동
 			for _, s := range ss {
@@ -170,6 +174,23 @@ func build(cfg Config, ado *adoClient) StateView {
 		GeneratedAt:   time.Now().Format(time.RFC3339),
 		ClaudeHome:    cfg.ClaudeHome,
 	}
+}
+
+// isBoardWorktree reports whether path is one of the worktrees currently shown
+// on the board. /api/open uses it to refuse running `code` on arbitrary paths.
+func isBoardWorktree(cfg Config, ado *adoClient, path string) bool {
+	if path == "" {
+		return false
+	}
+	st := build(cfg, ado)
+	for _, repo := range st.Repos {
+		for _, wt := range repo.Worktrees {
+			if wt.Path == path {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func sessionView(cfg Config, s *session, wtOpen bool) SessionView {
