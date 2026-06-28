@@ -1,8 +1,8 @@
 // endoscope — Claude 세션 통합 로컬 대시보드.
 //
 // 한 바이너리·한 포트에서 두 화면을 서빙한다:
-//   /        FleetBoard — 워크트리별 Claude 세션 + Git + Azure DevOps 상태 (5초 폴링)
-//   /viewer  JSONL 뷰어 — 세션 하나의 대화 내용 (fsnotify + SSE 실시간)
+//   #/board   Board  — 워크트리별 Claude 세션 + Git + Azure DevOps 상태 (5초 폴링)
+//   #/viewer  Viewer — 세션 하나의 대화 내용 (fsnotify + SSE 실시간)
 //
 // 보드의 세션 행을 클릭하면 /viewer?project=&file= 로 그 세션의 대화가 열린다.
 //
@@ -70,7 +70,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// ── SPA 셸 (FleetBoard + 뷰어를 해시 라우팅으로) ──
+	// ── SPA 셸 (Board + Viewer 를 해시 라우팅으로) ──
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)

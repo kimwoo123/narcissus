@@ -8,8 +8,8 @@
 
 | 경로 | 화면 | 갱신 |
 |---|---|---|
-| `/` | **FleetBoard** — 워크트리별 세션·Git·ADO 상태 보드 | 5초 폴링 |
-| `/viewer` | **JSONL 뷰어** — 세션 하나의 대화 내용 (분할뷰 최대 4) | fsnotify + SSE 실시간 |
+| `#/board` | **Board** — 워크트리별 세션·Git·ADO 상태 보드 | 5초 폴링 |
+| `#/viewer` | **Viewer** — 세션 하나의 대화 내용 (분할뷰 최대 4) | fsnotify + SSE 실시간 |
 
 보드의 세션 행을 클릭하면 `/viewer?project=&file=` 로 그 세션의 대화가 새 탭에서 열립니다.
 
