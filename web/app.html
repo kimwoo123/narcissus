@@ -19,12 +19,21 @@
   /* ── 공용 헤더 + 내비 ── */
   header.top { display:flex; align-items:center; gap:14px; padding:10px 18px;
     border-bottom:1px solid var(--line); background:var(--bg); flex:none; }
-  header.top h1 { font-size:15px; margin:0; letter-spacing:.5px; }
-  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); }
-  .nav { display:inline-flex; gap:4px; }
-  .nav a { font-size:13px; color:var(--mut); text-decoration:none; padding:4px 10px; border-radius:6px; }
-  .nav a:hover { color:var(--fg); }
-  .nav a.on { background:var(--panel); color:var(--fg); font-weight:600; }
+  /* 브랜드 — 앱 이름. 로고는 네모(상태 점과 헷갈리지 않게), 파랑. */
+  .brand { display:inline-flex; align-items:center; gap:7px; font-size:15px; font-weight:700;
+    letter-spacing:.3px; color:var(--fg); }
+  .brand .logo { width:8px; height:8px; border-radius:2px; background:var(--blue); }
+  .divider { width:1px; height:18px; background:var(--line); }
+  /* 내비 탭 — 지금 보고 있는 뷰. 활성 탭은 강조색(파랑)으로. */
+  .nav { display:inline-flex; gap:2px; }
+  .nav a { font-size:13px; color:var(--mut); text-decoration:none; padding:4px 11px; border-radius:6px; }
+  .nav a:hover { color:var(--fg); background:var(--panel); }
+  .nav a.on { background:rgba(88,166,255,.14); color:var(--blue); font-weight:700; }
+  /* ADO 연결 상태 — 우측, 점+라벨 칩 (탭/브랜드와 톤 구분) */
+  header.top .status { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--mut); }
+  header.top .status::before { content:''; width:7px; height:7px; border-radius:50%;
+    background:var(--gray); flex:none; }
+  header.top .status.ok::before { background:var(--green); }
   header.top .meta { color:var(--mut); font-size:12px; }
   header.top .spacer { flex:1; }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
@@ -162,14 +171,14 @@
 </head>
 <body>
 <header class="top">
-  <span class="dot"></span>
-  <h1>endoscope</h1>
+  <span class="brand"><span class="logo"></span>endoscope</span>
+  <span class="divider"></span>
   <nav class="nav">
     <a href="#/board" data-route="board">FleetBoard</a>
     <a href="#/viewer" data-route="viewer">뷰어</a>
   </nav>
-  <span class="meta" id="meta"></span>
   <span class="spacer"></span>
+  <span class="status" id="meta"></span>
   <div class="seg" id="seg">
     <button class="seg-btn" data-mode="active">활성만</button>
     <button class="seg-btn" data-mode="recent">최근까지<span class="seg-count" id="recentCount"></span></button>
@@ -257,8 +266,10 @@ window.addEventListener('hashchange', applyRoute);
 
   function render(state) {
     lastState = state;
-    document.getElementById('meta').textContent =
-      state.adoConfigured ? 'Azure DevOps 연결됨' : 'ADO 미설정 (ADO_PAT)';
+    const meta = document.getElementById('meta');
+    meta.className = state.adoConfigured ? 'status ok' : 'status';
+    meta.textContent = state.adoConfigured ? 'Azure DevOps' : 'ADO 미설정';
+    meta.title = state.adoConfigured ? 'Azure DevOps 연결됨' : 'ADO_PAT 미설정';
     document.getElementById('updated').textContent = '갱신 ' + ago(state.generatedAt);
 
     const board = document.getElementById('board');
